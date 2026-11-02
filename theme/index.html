@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>${title}</title>
+<link rel="icon" href="${favicon}">
+<link rel="stylesheet" href="${css}">
+</head>
+<body data-page="index">
+<script id="site" type="application/json">${site}</script>
+<header class="hero wrap">
+  <h1>${title}</h1>
+  <p class="subtitle">${tagline}</p>
+</header>
+<main class="wrap">
+  <div class="cards">
+${cards}
+  </div>
+  <details class="unlock-all">
+    <summary>Unlock all projects</summary>
+    <form>
+      <div class="row-in">
+        <input type="password" name="password" placeholder="Master password" aria-label="Master password" autocomplete="current-password" required>
+        <button class="btn-primary" type="submit">Unlock</button>
+      </div>
+      <label class="remember"><input type="checkbox" name="remember"> Remember on this device</label>
+      <p class="gate-msg" role="status"></p>
+    </form>
+  </details>
+  <p class="relock" hidden><button class="linkbtn" type="button">Lock all on this device</button></p>
+</main>
+<footer class="foot wrap"><span>${footer}</span></footer>
+<script src="${js}"></script>
+</body>
+</html>

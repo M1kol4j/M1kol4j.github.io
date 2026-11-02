@@ -1,0 +1,6 @@
+# plaintext content, passwords and keys: never committed
+content/
+# build output: published to gh-pages by publish.py, never committed here
+_site/
+_site.tmp/
+__pycache__/

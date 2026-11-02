@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>${title}</title>
+<link rel="icon" href="${favicon}">
+<link rel="stylesheet" href="../${css}">
+</head>
+<body data-page="project">
+<script id="lock" type="application/json">${lock}</script>
+<section id="gate" class="gate" hidden>
+  <div class="gate-card">
+    ${lock_icon}
+    <h1>${title}</h1>
+    <p class="summary">${summary}</p>
+    <form>
+      <div class="row-in">
+        <input type="password" name="password" placeholder="Password" aria-label="Password" autocomplete="current-password" required>
+        <button class="btn-primary" type="submit">Unlock</button>
+      </div>
+      <label class="remember"><input type="checkbox" name="remember"> Remember on this device</label>
+      <p class="gate-msg" role="status"></p>
+    </form>
+    <p class="fine">The page is decrypted in your browser; the password is never sent anywhere.<br><a href="../">All projects</a></p>
+  </div>
+</section>
+<div id="app" hidden>
+  <nav class="top wrap"><a href="../">&larr; All projects</a></nav>
+  <header class="hero wrap"></header>
+  <main id="content" class="content wrap"></main>
+  <footer class="foot wrap"><span>Updated ${updated}</span><span class="acts"></span></footer>
+</div>
+<noscript><p class="wrap">This page needs JavaScript to decrypt its content.</p></noscript>
+<script src="../${js}"></script>
+</body>
+</html>
