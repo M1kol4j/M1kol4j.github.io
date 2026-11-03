@@ -425,7 +425,8 @@ class Project:
                 aid, _ = self.image(self.path(c.attrGet('src')))
                 c.attrs.pop('src', None)
                 c.attrSet('data-asset', aid)
-            elif c.type == 'link_open' and is_local(c.attrGet('href')):
+            elif (c.type == 'link_open' and is_local(c.attrGet('href'))
+                  and (self.dir / c.attrGet('href')).is_file()):     # other links stay plain links
                 p = self.path(c.attrGet('href'))
                 c.attrSet('href', '#')
                 c.attrSet('data-asset-link', self.file(p))
