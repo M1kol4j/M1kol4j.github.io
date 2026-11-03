@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
-"""Drafts a ```run``` spec block for a DISPATCH run from its params.nml.
+"""Drafts ```run``` spec blocks for DISPATCH runs from their params.nml and snapshots.
 
-  ./runspec.py                   print the blank template (run-template.md)
-  ./runspec.py <run data dir>    print the block filled from <dir>/params.nml
+  ./runspec.py                            print the blank template (run-template.md)
+  ./runspec.py <run>                      print the filled block; a run extended from
+                                          another is followed by the source run, folded
+  ./runspec.py --refresh <index.md> ...   update the changing lines (status, snapshots,
+                                          aux, sizes) of every run block in place, and add
+                                          the folded source run of an extension if missing
 
-Paste the output into content/<project>/index.md and complete it: machine,
-purpose, seed field, corona and anything else the namelist does not record.
-Lines left empty are not shown on the page.
+<run> is a run directory or a name under --data. Paste the output into
+content/<project>/index.md and complete what the namelist does not record:
+machine, purpose, seed field, corona. Empty lines are not shown on the page.
 """
+import argparse
+import os
 import re
 import sys
 from pathlib import Path
 
 TEMPLATE = Path(__file__).resolve().parent / 'run-template.md'
+DATA = Path(os.environ.get('RUN_DATA', '/mn/stornext/d9/data/mikolajs/Dispatch/dispatch-bifrost/experiments/photo_tr/data'))
 TOKEN = re.compile(r"""\s*(?:(\d+)\*)?('(?:[^']|'')*'?|"[^"]*"?|[^,\s]+)\s*,?""")
 X = ' × '
 BC = {3: 'characteristic (CBC)'}       # boundaries_mod codes; the others are left as numbers
@@ -126,22 +133,99 @@ def bounds(llc, urc):
     return ', '.join(parts) or 'the whole box'
 
 
-def snapshot_info(run):
-    """(number, time, bytes) of the newest snapshot that has a snapshot.nml."""
-    cands = []
+def aux_names(path, limit=1000, whole=False):
+    """Variable names in a .aux / .aux2d file: each entry is five Fortran records (name,
+    two ints, a string, the payload). 3-D aux sit on every patch, so the first repeated
+    name ends the scan; 2-D maps sit on some patches only, so `whole` reads every name."""
+    names = []
     try:
-        cands.append(int((run / 'last.snap').read_text().split()[0]))
-    except (OSError, ValueError, IndexError):
+        with open(path, 'rb') as f:
+            for _ in range(limit if not whole else 10**7):
+                name = None
+                for k in range(5):
+                    head = f.read(4)
+                    if len(head) < 4:
+                        return names
+                    size = int.from_bytes(head, 'little', signed=True)
+                    if k == 0:
+                        name = f.read(size).decode(errors='replace').strip()
+                    else:
+                        f.seek(size, 1)
+                    f.seek(4, 1)
+                if name == '__record__':
+                    continue
+                if name in names:
+                    if whole:
+                        continue
+                    break
+                names.append(name)
+    except OSError:
         pass
-    cands += sorted((int(d.name) for d in run.iterdir() if d.name.isdigit() and d.is_dir()), reverse=True)
-    for n in cands:
-        d = run / f'{n:05d}'
-        if (d / 'snapshot.nml').exists():
-            groups = read_nml(d / 'snapshot.nml')
-            time = next((g['time'][0] for g in groups.values() if g.get('time')), None)
-            size = sum(f.stat().st_size for f in d.iterdir() if f.is_file())
-            return n, time, size
-    return None
+    return names
+
+
+def scan(run):
+    """Every snapshot directory: number, complete (all rank .done markers, or a
+    snapshot.nml in runs from before the markers), time, bytes, (3-D aux, 2-D aux)."""
+    out = []
+    for d in sorted(d for d in run.iterdir() if re.fullmatch(r'\d{5}', d.name) and d.is_dir()):
+        files = [f for f in d.iterdir() if f.is_file()]
+        names = {f.name for f in files}
+        dones = [f for f in files if f.name.endswith('.done')]
+        if dones:
+            try:
+                need = int(dones[0].read_text().split()[0])
+            except (OSError, ValueError, IndexError):
+                need = len(dones)
+            complete = len(dones) >= need
+        else:
+            complete = 'snapshot.nml' in names and any(x.endswith('.dat') for x in names)
+        time = None
+        if complete and 'snapshot.nml' in names:
+            time = next((g['time'][0] for g in read_nml(d / 'snapshot.nml').values() if g.get('time')), None)
+        aux = (tuple(aux_names(d / 'snapshot_00000.aux')), tuple(sorted(aux_names(d / 'snapshot_00000.aux2d', whole=True)))) if complete else None
+        out.append({'n': int(d.name), 'complete': complete, 'time': time,
+                    'size': sum(f.stat().st_size for f in files), 'aux': aux})
+    return out
+
+
+def ranges(nums):
+    """[0, 1, 2, 5, 7, 8] -> '0–2, 5, 7–8'."""
+    out, nums = [], sorted(nums)
+    i = 0
+    while i < len(nums):
+        j = i
+        while j + 1 < len(nums) and nums[j + 1] == nums[j] + 1:
+            j += 1
+        out.append(str(nums[i]) if i == j else f'{nums[i]}\u2013{nums[j]}')
+        i = j + 1
+    return ', '.join(out)
+
+
+def aux_summary(snaps):
+    groups = []
+    for x in snaps:
+        if x['aux'] is None:
+            continue
+        if groups and groups[-1][0] == x['aux']:
+            groups[-1][1].append(x['n'])
+        else:
+            groups.append((x['aux'], [x['n']]))
+    code = lambda vs: ', '.join(f'`{v}`' for v in vs)
+    fmt = lambda a: ' + '.join(filter(None, [code(a[0]), f'2-D maps {code(a[1])}' if a[1] else ''])) or 'none'
+    if len(groups) == 1:
+        return fmt(groups[0][0]) + ' (every snapshot)'
+    return '; '.join(f'snapshot{"s" if len(ns) > 1 else ""} {ranges(ns)}: {fmt(a)}' for a, ns in groups)
+
+
+def gb(b):
+    return f'{b / 2**30:.1f} GB' if b >= 2**30 else f'{b / 2**20:.0f} MB'
+
+
+def source(run):
+    """The run this one was extended from (a name), or None."""
+    frm = Nml(Path(run) / 'params.nml').get('extend_params', 'from')
+    return Path(frm).name if frm else None
 
 
 # ------------------------------------------------------------------ spec
@@ -156,7 +240,9 @@ def spec(run):
     origin = [x * mm for x in n.all('cartesian_params', 'origin')]
     dims = n.all('cartesian_params', 'dims')
     cells = n.all('patch_params', 'n')
-    snap = snapshot_info(run)
+    snaps = scan(run)
+    done = [x for x in snaps if x['complete']]
+    snap = (done[-1]['n'], done[-1]['time'], done[-1]['size']) if done else None
     s = {}
 
     status = ''
@@ -287,12 +373,25 @@ def spec(run):
     ot = n.get('out_params', 'out_time') or n.get('io_params', 'out_time')
     if ot:
         io['cadence'] = f'{num(ot)} ({clock(ot * T)})'
-    aux = [a for a in n.all('aux_params', 'select') if isinstance(a, str) and a]
-    if aux:
-        io['aux'] = ', '.join(f'`{a}`' for a in aux)
-    if snap:
-        io['snapshot size'] = f'{snap[2] / 2**30:.2f} GB (snapshot {snap[0]})'
     io['time unit'] = f'{num(T)} s'
+
+    da = s['Data'] = {'location': f'`{run.resolve()}`'}
+    if done:
+        times = [x['time'] for x in done if x['time'] is not None]
+        txt = f'{len(done)} complete: {ranges([x["n"] for x in done])}'
+        if times:
+            txt += f', t = {num(min(times))}\u2013{num(max(times))} (up to {clock(max(times) * T)})'
+        bad = [x['n'] for x in snaps if not x['complete']]
+        da['snapshots'] = txt + (f'; {ranges(bad)} incomplete' if bad else '')
+    nv = n.get('patch_params', 'nv')
+    if nv:
+        da['primary'] = (f'{nv} per cell: density, momentum, energy, magnetic field' if nv == 8 else f'{nv} per cell')
+    sel = [a for a in n.all('aux_params', 'select') if isinstance(a, str) and a]
+    da['aux'] = aux_summary(done) if any(x['aux'] for x in done) else ', '.join(f'`{a}`' for a in sel)
+    if snap:
+        da['snapshot size'] = f'{gb(snap[2])} (snapshot {snap[0]})'
+    if snaps:
+        da['total size'] = gb(sum(x['size'] for x in snaps))
 
     src = n.get('extend_params', 'from')
     s['Initial condition'] = {'start': f'extended from `{Path(src).name}` snapshot {n.get("extend_params", "snapshot")}'
@@ -338,16 +437,144 @@ def fill(spec_, body):
     return '\n'.join(lines).strip('\n')
 
 
+# ---------------------------------------------------------------- refresh
+
+KEY = re.compile(r'([^\s#:][^:]*?)\s*:(.*)$')
+DYNAMIC = {None: {'status'}, 'Refinement': {'switched on'},
+           'Data': {'location', 'snapshots', 'primary', 'aux', 'snapshot size', 'total size'}}
+
+
+def block_name(block):
+    m = re.search(r'^name:\s*(\S+)', block, re.M)
+    return m.group(1) if m else None
+
+
+def refreshed(block, run):
+    """`block` with its changing lines replaced from the run on disk; keys it lacks are
+    added at the end of their section, and a missing [Data] section after [Output]."""
+    new = spec(run)
+    head = new.pop('head')
+    values = {None: {k.lower(): v for k, v in head.items()}}
+    values.update({sec: {k.lower(): (k, v) for k, v in d.items()} for sec, d in new.items()})
+    sections, cur = [(None, [])], None
+    for line in block.splitlines():
+        m = re.match(r'\s*\[(.+)\]\s*$', line)
+        if m:
+            cur = m.group(1).strip()
+            sections.append((cur, [line]))
+        else:
+            sections[-1][1].append(line)
+    out = []
+    for sec, lines in sections:
+        keys = DYNAMIC.get(sec, set())
+        seen = set()
+        for i, line in enumerate(lines):
+            m = KEY.match(line)
+            if not m or m.group(1).strip().lower() not in keys:
+                continue
+            key, lk, old = m.group(1).strip(), m.group(1).strip().lower(), m.group(2).strip()
+            seen.add(lk)
+            val = values.get(sec, {}).get(lk)
+            val = val if sec is None else (val[1] if val else None)
+            if not val:
+                continue
+            if lk == 'status':                       # keep what follows " · " (running, machine, ...)
+                if old and not re.match(r'snapshot \d+', old):
+                    continue
+                rest = old.split(' \u00B7 ', 1)[1] if ' \u00B7 ' in old else ''
+                val = val + (f' \u00B7 {rest}' if rest else '')
+            if lk == 'switched on' and old and not old.startswith('t = '):
+                continue
+            lines[i] = f'{key}: {val}'
+        if sec is not None:
+            missing = [f'{k}: {v}' for lk, (k, v) in values.get(sec, {}).items() if lk in keys and lk not in seen]
+            while lines and not lines[-1].strip():
+                lines.pop()
+            lines += missing + ['']
+        out.append((sec, lines))
+    if 'Data' not in [sec for sec, _ in out]:
+        data = ['[Data]'] + [f'{k}: {v}' for k, v in new.get('Data', {}).items()] + ['']
+        at = next((i + 1 for i, (sec, _) in enumerate(out) if sec == 'Output'), len(out))
+        out.insert(at, ('Data', data))
+    text = '\n'.join(line for _, lines in out for line in lines)
+    return re.sub(r'\n{3,}', '\n\n', text).strip('\n') + '\n'
+
+
+def folded(run, template):
+    body = template.split('```run', 1)[1].rsplit('```', 1)[0]
+    text = fill(spec(run), body)
+    lines = [ln for ln in text.splitlines()
+             if not (KEY.match(ln) and not re.sub(r'(?:^|\s+)#(?:\s.*)?$', '', KEY.match(ln).group(2)).strip())]
+    out = []
+    for ln in lines:
+        out.append(ln)
+        if ln.startswith('name:'):
+            out.append('collapsed: yes')
+    return '```run\n' + re.sub(r'\n{3,}', '\n\n', '\n'.join(out)).strip('\n') + '\n```'
+
+
+def find(name, data):
+    p = Path(name)
+    if (p / 'params.nml').is_file():
+        return p
+    if (data / name / 'params.nml').is_file():
+        return data / name
+    return None
+
+
+def refresh(paths, data, template):
+    for md in paths:
+        text = md.read_text()
+        names = set(re.findall(r'```run\n(?:.*\n)*?name:\s*(\S+)', text))
+        pieces, pos, changed = [], 0, False
+        for m in re.finditer(r'```run\n(.*?)```', text, re.S):
+            pieces.append(text[pos:m.start()])
+            block, name = m.group(1), block_name(m.group(1))
+            run = find(name, data) if name else None
+            if run is None:
+                if name:
+                    print(f'runspec: {md}: no run {name} under {data}, left as it is', file=sys.stderr)
+                pieces.append(m.group(0))
+            else:
+                new = '```run\n' + refreshed(block, run) + '```'
+                pieces.append(new)
+                src = source(run)
+                while src and src not in names and find(src, data):
+                    pieces.append('\n\n' + folded(find(src, data), template))
+                    print(f'runspec: {md}: added {src}, the source of {name}, folded')
+                    names.add(src)
+                    src = source(find(src, data))
+            pos = m.end()
+        pieces.append(text[pos:])
+        new_text = ''.join(pieces)
+        if new_text != text:
+            md.write_text(new_text)
+            print(f'runspec: refreshed {md}')
+
+
 def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('run', nargs='?', help='run directory or name under --data')
+    ap.add_argument('--data', type=Path, default=DATA, help=f'directory of runs (default {DATA})')
+    ap.add_argument('--refresh', nargs='+', type=Path, metavar='index.md')
+    a = ap.parse_args()
     template = TEMPLATE.read_text()
-    if len(sys.argv) < 2:
+    if a.refresh:
+        refresh([p for p in a.refresh if p.is_file()], a.data, template)
+        return
+    if not a.run:
         print(template.rstrip())
         return
-    run = Path(sys.argv[1])
-    if not (run / 'params.nml').is_file():
-        sys.exit(f'runspec: no {run / "params.nml"}')
+    run = find(a.run, a.data)
+    if run is None:
+        sys.exit(f'runspec: no params.nml in {a.run} or {a.data / a.run}')
     body = template.split('```run', 1)[1].rsplit('```', 1)[0]
     print('```run\n' + fill(spec(run), body) + '\n```')
+    src, seen = source(run), {run.name}
+    while src and src not in seen and find(src, a.data):
+        print('\n' + folded(find(src, a.data), template))
+        seen.add(src)
+        src = source(find(src, a.data))
 
 
 if __name__ == '__main__':

@@ -80,6 +80,15 @@ paste and complete:
 Empty values and hints after ` # ` are not shown, `[Section]` starts a box,
 any key can be added, and `collapsed: yes` (under `name:`) folds the card.
 
+The `[Data]` box says where the snapshots are, how many are complete (all rank
+`.done` markers) with their times, which are incomplete, the aux variables each
+snapshot actually holds (3-D, then 2-D maps), and the sizes. These lines change
+as a run goes on: `make refresh`, which `make publish` runs first, rewrites
+them, plus `status` and `switched on` while they still have the generated
+form, in every run block of `content/*/index.md`; everything typed by hand
+stays. A run extended from another gets that source run's card added after it,
+folded, if the page does not have it yet (and so on down the chain).
+
 ## How the protection works
 
 Each project has a random 256-bit content key. Every file of the project is

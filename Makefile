@@ -8,20 +8,21 @@
 #   make rekey P=dynamo          new content key: revokes remembered keys and share links
 #   make spec [RUN=stellar.12k]  print the run-spec template, filled from the run's params.nml if given
 #                                (a bare name is looked up in DATA, the photo_tr data directory)
+#   make refresh                 update status, snapshots, aux and sizes in every run card (publish does it too)
 #   make clean                   remove _site/ and the movie cache
 
 PY   ?= python3
 PORT ?= 8000
 DATA ?= /mn/stornext/d9/data/mikolajs/Dispatch/dispatch-bifrost/experiments/photo_tr/data
 
-.PHONY: help build serve publish link passwd rekey spec clean
+.PHONY: help build serve publish link passwd rekey spec refresh clean
 help:
 	@sed -n '1,/^$$/p' Makefile | sed 's/^# \{0,1\}//'
 build:
 	$(PY) publish.py build
 serve:
 	$(PY) publish.py serve $(PORT)
-publish:
+publish: refresh
 	$(PY) publish.py push
 link:
 	@test -n "$(P)" || { echo 'make link P=<project>'; exit 1; }
@@ -33,6 +34,8 @@ rekey:
 	@test -n "$(P)" || { echo 'make rekey P=<project>'; exit 1; }
 	$(PY) publish.py rekey $(P)
 spec:
-	@$(PY) runspec.py $(if $(RUN),$(if $(wildcard $(RUN)),$(RUN),$(DATA)/$(RUN)))
+	@$(PY) runspec.py --data $(DATA) $(RUN)
+refresh:
+	@$(PY) runspec.py --data $(DATA) --refresh $(wildcard content/*/index.md)
 clean:
 	rm -rf _site _site.tmp content/.cache

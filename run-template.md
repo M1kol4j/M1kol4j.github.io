@@ -53,10 +53,17 @@ T<sub>eff</sub> target:
 
 [Output]
 cadence:                  # snapshot interval, code units (solar time)
-aux:                      # extra variables in each snapshot
-snapshot size:
 time unit:
 kept:                     # e.g. 3-D every 10th snapshot, 2-D maps every one
+
+[Data]
+location:                 # directory with the snapshots
+also on:                  # e.g. Betzy /cluster/work/users/<user>/photo.tr/data/<run>
+snapshots:                # complete ones, their times, incomplete ones
+primary:                  # variables in each .dat
+aux:                      # extra variables in each snapshot, 3-D then 2-D maps
+snapshot size:
+total size:
 
 [Initial condition]
 start:                    # fresh start, or extended from <run> snapshot <n>
