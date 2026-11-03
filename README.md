@@ -62,32 +62,26 @@ Keys in the widget: space play/pause, ←/→ one frame, 1-4 modes, b switch (bl
 ## Run specs
 
 A ```` ```run ```` block becomes a card with the run's box, grid, refinement,
-numerics, physics, boundaries, output and initial condition. `run-template.md`
-lists the fields. `make spec RUN=stellar.12k` prints the block filled from the
-run's `params.nml` (a bare name is looked up in the photo_tr `data/`), ready to
-paste and complete:
+numerics (Boris cap, B0 split, extra diffusion), radiation (RT rays and bins,
+genrad terms read from its radtab, incrad), heating limits, physics, boundaries,
+output, data (where the snapshots are, how many, MHD, the aux each one holds,
+sizes) and initial condition (model, seed field, corona).
 
-    ```run
-    name: stellar.12k
-    status: snapshot 43, t = 430 (11 h 57 min)
-    purpose: production dynamo box
+The blocks come from the dispatch tool `utilities/python/runspec.py`
+(`RUNSPEC` in the Makefile), which reads the run's `params.nml`, its input
+`<run>.nml` for what the code does not dump, and its snapshot directories:
 
-    [Box]
-    size: 18.432 × 18.432 × 11.52 Mm
-    ...
-    ```
+    make spec RUN=stellar.12k     # the block for a page (a run extended from another
+                                  # is followed by the source run, folded)
+    make spec                     # the blank template
+    runspec.py stellar.12k        # the same summary on screen; --format mkdocs for the docs
 
 Empty values and hints after ` # ` are not shown, `[Section]` starts a box,
 any key can be added, and `collapsed: yes` (under `name:`) folds the card.
-
-The `[Data]` box says where the snapshots are, how many are complete (all rank
-`.done` markers) with their times, which are incomplete, the aux variables each
-snapshot actually holds (3-D, then 2-D maps), and the sizes. These lines change
-as a run goes on: `make refresh`, which `make publish` runs first, rewrites
-them, plus `status` and `switched on` while they still have the generated
-form, in every run block of `content/*/index.md`; everything typed by hand
-stays. A run extended from another gets that source run's card added after it,
-folded, if the page does not have it yet (and so on down the chain).
+`make refresh`, which `make publish` runs first, rewrites the lines that change
+while a run goes on (status, switched on, the Data box) in every run block of
+`content/*/index.md` and adds the folded source run of an extension; everything
+typed by hand stays.
 
 ## How the protection works
 
