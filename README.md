@@ -59,6 +59,27 @@ Movie pairs are stacked into one file, so both halves stay on the same frame.
 Keys in the widget: space play/pause, ←/→ one frame, 1-4 modes, b switch (blink),
 +/- zoom, 0 reset; drag pans when zoomed, ctrl + wheel or pinch zooms.
 
+## Run specs
+
+A ```` ```run ```` block becomes a card with the run's box, grid, refinement,
+numerics, physics, boundaries, output and initial condition. `run-template.md`
+lists the fields. `make spec RUN=stellar.12k` prints the block filled from the
+run's `params.nml` (a bare name is looked up in the photo_tr `data/`), ready to
+paste and complete:
+
+    ```run
+    name: stellar.12k
+    status: snapshot 43, t = 430 (11 h 57 min)
+    purpose: production dynamo box
+
+    [Box]
+    size: 18.432 × 18.432 × 11.52 Mm
+    ...
+    ```
+
+Empty values and hints after ` # ` are not shown, `[Section]` starts a box,
+any key can be added, and `collapsed: yes` (under `name:`) folds the card.
+
 ## How the protection works
 
 Each project has a random 256-bit content key. Every file of the project is

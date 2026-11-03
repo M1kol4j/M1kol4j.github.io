@@ -6,12 +6,15 @@
 #   make link P=dynamo           share link that opens a project without its password
 #   make passwd P=dynamo [PW=..] new password for a project (or P=master); random if PW is empty
 #   make rekey P=dynamo          new content key: revokes remembered keys and share links
+#   make spec [RUN=stellar.12k]  print the run-spec template, filled from the run's params.nml if given
+#                                (a bare name is looked up in DATA, the photo_tr data directory)
 #   make clean                   remove _site/ and the movie cache
 
 PY   ?= python3
 PORT ?= 8000
+DATA ?= /mn/stornext/d9/data/mikolajs/Dispatch/dispatch-bifrost/experiments/photo_tr/data
 
-.PHONY: help build serve publish link passwd rekey clean
+.PHONY: help build serve publish link passwd rekey spec clean
 help:
 	@sed -n '1,/^$$/p' Makefile | sed 's/^# \{0,1\}//'
 build:
@@ -29,5 +32,7 @@ passwd:
 rekey:
 	@test -n "$(P)" || { echo 'make rekey P=<project>'; exit 1; }
 	$(PY) publish.py rekey $(P)
+spec:
+	@$(PY) runspec.py $(if $(RUN),$(if $(wildcard $(RUN)),$(RUN),$(DATA)/$(RUN)))
 clean:
 	rm -rf _site _site.tmp content/.cache

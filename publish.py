@@ -283,6 +283,46 @@ def parse_block(text):
     return out
 
 
+def parse_spec(text):
+    """A ```run``` block: `key: value` lines, `[Section]` lines, indented continuations.
+    Lines starting with # and hints after " # " are dropped, and so are empty values."""
+    head, sections, last = [], [], None
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        m = re.match(r'\s*\[(.+)\]\s*$', line)
+        if m:
+            sections.append((m.group(1).strip(), []))
+            last = None
+            continue
+        m = re.match(r'([^\s#:][^:]*?)\s*:(.*)$', line)
+        if m and not line[0].isspace():
+            last = [m.group(1).strip(), m.group(2)]
+            (sections[-1][1] if sections else head).append(last)
+        elif last is not None:
+            last[1] += ' ' + line.strip()
+    clean = lambda items: [(k, v) for k, v in ((k, re.sub(r'(?:^|\s+)#(?:\s.*)?$', '', v).strip()) for k, v in items) if v]
+    return clean(head), [(name, clean(items)) for name, items in sections]
+
+
+def run_card(src):
+    head, sections = parse_spec(src)
+    meta = {k.lower(): v for k, v in head}
+    name = meta.get('name', 'run')
+    inline = lambda v: MD.renderInline(v).strip()
+    status = f'<span class="spec-status">{inline(meta["status"])}</span>' if meta.get('status') else ''
+    title = (f'<span class="spec-label">Run</span><code class="spec-name">{esc(name)}</code>{status}')
+    rows = lambda items: ''.join(f'<dt>{inline(k)}</dt><dd>{inline(v)}</dd>' for k, v in items)
+    extra = [(k, v) for k, v in head if k.lower() not in ('name', 'status', 'collapsed')]
+    body = (f'<dl class="spec-top">{rows(extra)}</dl>' if extra else '') + '<div class="spec-grid">' + ''.join(
+        f'<div class="spec-sec"><h4>{esc(sec)}</h4><dl>{rows(items)}</dl></div>' for sec, items in sections if items
+    ) + '</div>'
+    rid = 'run-' + re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+    if meta.get('collapsed', '').lower() in ('yes', 'true', '1', 'y'):
+        return f'<details class="spec" id="{rid}"><summary class="spec-head">{title}</summary>{body}</details>'
+    return f'<section class="spec" id="{rid}"><header class="spec-head">{title}</header>{body}</section>'
+
+
 def html_block(content):
     t = Token('html_block', '', 0)
     t.content = content + '\n'
@@ -366,6 +406,10 @@ class Project:
                     continue
             if t.type == 'fence' and t.info.strip().split()[:1] == ['compare']:
                 out.append(html_block(self.compare(t.content)))
+                i += 1
+                continue
+            if t.type == 'fence' and t.info.strip().split()[:1] == ['run']:
+                out.append(html_block(run_card(t.content)))
                 i += 1
                 continue
             if t.type == 'inline':
