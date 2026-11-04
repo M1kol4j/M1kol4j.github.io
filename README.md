@@ -67,7 +67,7 @@ genrad terms read from its radtab, incrad), heating limits, physics, boundaries,
 output, data (where the snapshots are, how many, MHD, the aux each one holds,
 sizes) and initial condition (model, seed field, corona).
 
-The blocks come from the dispatch tool `utilities/python/runspec.py`
+The blocks come from the Dispatch-Bifrost tool `experiments/photo_tr/utils/runspec.py`
 (`RUNSPEC` in the Makefile), which reads the run's `params.nml`, its input
 `<run>.nml` for what the code does not dump, and its snapshot directories:
 

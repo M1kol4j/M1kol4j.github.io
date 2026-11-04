@@ -6,7 +6,7 @@
 #   make link P=dynamo           share link that opens a project without its password
 #   make passwd P=dynamo [PW=..] new password for a project (or P=master); random if PW is empty
 #   make rekey P=dynamo          new content key: revokes remembered keys and share links
-#   make spec [RUN=stellar.12k]  print a run block for a page, filled by RUNSPEC (dispatch utilities/python/runspec.py)
+#   make spec [RUN=stellar.12k]  print a run block for a page, filled by RUNSPEC (photo_tr utils/runspec.py in Dispatch-Bifrost)
 #                                from the run's namelists and snapshots; without RUN the blank template
 #   make refresh                 update status, snapshots, aux and sizes in every run card (publish does it too)
 #   make clean                   remove _site/ and the movie cache
@@ -14,7 +14,7 @@
 PY   ?= python3
 PORT ?= 8000
 DATA ?= /mn/stornext/d9/data/mikolajs/Dispatch/dispatch-bifrost/experiments/photo_tr/data
-RUNSPEC ?= /mn/stornext/d9/data/mikolajs/Dispatch/dispatch-bifrost/utilities/python/runspec.py
+RUNSPEC ?= /mn/stornext/d9/data/mikolajs/Dispatch/dispatch-bifrost/experiments/photo_tr/utils/runspec.py
 
 .PHONY: help build serve publish link passwd rekey spec refresh clean
 help:
